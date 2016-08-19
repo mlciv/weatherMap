@@ -1,7 +1,8 @@
 var WeatherMap = {
 	chartWidth: 400,
 	chartBarWidth: 2,
-        openWeatherMapKey: 'f9e857b9d3169a62f9ef93f8e9ffc2c0'
+        openWeatherMapKey: 'f9e857b9d3169a62f9ef93f8e9ffc2c0',
+        dbipAPIKey: '4342b1ec2999af4b9168d681aea19c12bb4fcc8e'
 };
 var infowindow = new google.maps.InfoWindow();
 
@@ -17,21 +18,9 @@ var App = React.createClass({
                     coords : localStorage['weatherMap:coords'],
 		};
 	},
-	componentDidMount: function(){
-		this.hashChange();
-		var self = this;
-		window.onhashchange = function(){
-			self.hashChange();
-		};
-	},
 	componentDidUpdate: function(){
                 // add some state into localStorage
 		localStorage['weatherMap:coords'] = this.state.coords;
-	},
-	hashChange: function(){
-                // handle hashChange 
-                var hash = location.hash.slice(1);
-		if (!hash) return;
 	},
         render: function(){
 		return (
@@ -40,6 +29,7 @@ var App = React.createClass({
 				<div id="sidebar">
 					<header>
 						<h1><Icon type="mountains" width="24" height="24"></Icon> Weather Map</h1>
+					<IPForm />
 					</header>
 				</div>
 			</div>
@@ -62,6 +52,8 @@ var Map = React.createClass({
 	getInitialState: function(){
 		return {
                     //add init state
+                    cityName : 'Wuhan',
+                    countryCode :'cn',
                     gettingData : false
 		};
 	},
@@ -88,11 +80,29 @@ var Map = React.createClass({
 			this.pinpointMarker.setVisible(false);
 		}
 	},
+	hashChange: function(map){
+                // handle hashChange 
+                var hash = location.hash.slice(1);
+		if (!hash) return;
+                var values = hash.split('/');
+                var cityName = decodeURIComponent(values[0]);
+                var countryCode = decodeURIComponent(values[1]);
+                this.setState({
+                    cityName : cityName,
+                    countryCode : countryCode
+                }
+                );
+                this.getWeatherByCityName(map)
+	},
 	componentDidMount: function(){
 		var node = this.getDOMNode();
                 var map = new google.maps.Map(node, this.props.mapOption);
-                var state = this.state
-                var self = this
+                var state = this.state;
+                var self = this;
+                this.hashChange(map);
+		window.onhashchange = function(){
+			self.hashChange(map);
+		};
                 var checkIfDataRequested = function() {
                     // Stop extra requests being sent
                     while (state.gettingData === true) {
@@ -127,7 +137,7 @@ var Map = React.createClass({
         Map.pinpointMarker.setMap(map);
 },
     getCoords : function(map) {
-        console.log(map.getBounds());
+        console.log('bounds' + map.getBounds());
         var bounds = map.getBounds();
         var NE = bounds.getNorthEast();
         var SW = bounds.getSouthWest();
@@ -139,6 +149,102 @@ var Map = React.createClass({
         });
         this.getWeathers(map)
     },
+    // Take the JSON results and process them
+    processResults : function(map, response) {
+        var results = response.data
+        console.log('weatherResults'+results);
+        console.log(results);
+        if (typeof results.list != 'undefined'){
+            if (results.list.length > 0) {
+                this.resetData(map);
+                for (var i = 0; i < results.list.length; i++) {
+                    geoJSON.features.push(this.jsonToGeoJson(map, results.list[i]));
+                }
+                this.drawIcons(map, geoJSON);
+            }
+        }else{
+            this.resetData(map);
+            var feature = this.jsonToGeoJson(map, results);
+            geoJSON.features.push(feature);
+            var center = new google.maps.LatLng(results.coord.lat, results.coord.lon);
+            map.setCenter(center);
+            this.drawIcons(map,geoJSON);
+        }
+    },
+
+    jsonToGeoJson : function (map, weatherItem) {
+        var feature = {
+            type: "Feature",
+            properties: {
+                city: weatherItem.name,
+                weather: weatherItem.weather[0].main,
+                temperature: weatherItem.main.temp,
+                min: weatherItem.main.temp_min,
+                max: weatherItem.main.temp_max,
+                humidity: weatherItem.main.humidity,
+                pressure: weatherItem.main.pressure,
+                windSpeed: weatherItem.wind.speed,
+                windDegrees: weatherItem.wind.deg,
+                windGust: weatherItem.wind.gust,
+                icon: "https://openweathermap.org/img/w/"
+                    + weatherItem.weather[0].icon  + ".png",
+                coordinates: [weatherItem.coord.lon, weatherItem.coord.lat]
+            },
+            geometry: {
+                type: "Point",
+                coordinates: [weatherItem.coord.lon, weatherItem.coord.lat]
+            }
+        };
+        // Set the custom marker icon
+        map.data.setStyle(function(feature) {
+            return {
+                icon: {
+                    url: feature.getProperty('icon'),
+                    anchor: new google.maps.Point(25, 25)
+                }
+            };
+        });
+
+        // returns object
+        return feature;
+    },
+    // Add the markers to the map
+    drawIcons : function (map, weather) {
+        map.data.addGeoJson(geoJSON);
+        // Set the flag to finished
+        this.setState({
+            gettingData: false
+        })
+    },
+    // Clear data layer and geoJSON
+    resetData : function (map) {
+        geoJSON = {
+            type: "FeatureCollection",
+            features: []
+        };
+
+        map.data.forEach(function(feature) {
+            map.data.remove(feature);
+        });
+    },
+    getWeatherByCityName : function(map){
+        var self = this;
+        this.setState({
+            gettingData: true
+        });
+        var state = this.state;
+        var cityName = state.cityName;
+        var countryCode = state.countryCode;
+        var requestString = "https://api.openweathermap.org/data/2.5/weather?q="
+                + cityName + "," + countryCode
+                + "&APPID=" + WeatherMap.openWeatherMapKey;
+        console.log(requestString);
+        self.serverRequest = 
+                axios.get(requestString)
+                .then(function(response) {
+                    self.processResults(map, response)
+                });
+    },
     getWeathers: function(map){
             var self = this;
             this.setState({
@@ -149,87 +255,21 @@ var Map = React.createClass({
             var eastLng = state.neLng;
             var southLat = state.swLat;
             var westLng = state.swLng;
-            var requestString = "http://api.openweathermap.org/data/2.5/box/city?bbox="
+            var requestString = "https://api.openweathermap.org/data/2.5/box/city?bbox="
                 + westLng + "," + northLat + "," //left top
                 + eastLng + "," + southLat + "," //right bottom
                 + map.getZoom()
                 + "&cluster=yes&format=json"
                 + "&APPID=" + WeatherMap.openWeatherMapKey;
-
-            // Take the JSON results and proccess them
-            var processResults = function(response) {
-                var results = response.data
-                console.log(results);
-                if (results.list.length > 0) {
-                    resetData();
-                    for (var i = 0; i < results.list.length; i++) {
-                        geoJSON.features.push(jsonToGeoJson(results.list[i]));
-                    }
-                    drawIcons(geoJSON);
-                }
-            };
-            var jsonToGeoJson = function (weatherItem) {
-                var feature = {
-                    type: "Feature",
-                    properties: {
-                        city: weatherItem.name,
-                        weather: weatherItem.weather[0].main,
-                        temperature: weatherItem.main.temp,
-                        min: weatherItem.main.temp_min,
-                        max: weatherItem.main.temp_max,
-                        humidity: weatherItem.main.humidity,
-                        pressure: weatherItem.main.pressure,
-                        windSpeed: weatherItem.wind.speed,
-                        windDegrees: weatherItem.wind.deg,
-                        windGust: weatherItem.wind.gust,
-                        icon: "http://openweathermap.org/img/w/"
-                            + weatherItem.weather[0].icon  + ".png",
-                        coordinates: [weatherItem.coord.lon, weatherItem.coord.lat]
-                    },
-                    geometry: {
-                        type: "Point",
-                        coordinates: [weatherItem.coord.lon, weatherItem.coord.lat]
-                    }
-                };
-                // Set the custom marker icon
-                map.data.setStyle(function(feature) {
-                    return {
-                        icon: {
-                            url: feature.getProperty('icon'),
-                            anchor: new google.maps.Point(25, 25)
-                        }
-                    };
-                });
-
-                // returns object
-                return feature;
-            };
-            // Add the markers to the map
-            var drawIcons = function (weather) {
-                map.data.addGeoJson(geoJSON);
-                // Set the flag to finished
-                self.setState({
-                    gettingData: false
-                })
-            };
-            // Clear data layer and geoJSON
-            var resetData = function () {
-                geoJSON = {
-                    type: "FeatureCollection",
-                    features: []
-                };
-                map.data.forEach(function(feature) {
-                    map.data.remove(feature);
-                });
-            };
-
             self.serverRequest = 
                 axios.get(requestString)
-                .then(processResults);
+                .then(function(response) {
+                    self.processResults(map, response)
+                });
         },
         componentWillUnmount: function() {
-                       this.serverRequest.abort();
-                   },
+            this.serverRequest.abort();
+        },
 	render: function(){
 		return (
 			<div id="map-canvas"></div>
@@ -272,46 +312,42 @@ var Chart = React.createClass({
 	}
 });
 
-var LocationForm = React.createClass({
-	render: function(){
+// a form to submit a ip address to Map
+var IPForm = React.createClass({
+        handleSubmit : function() {
+          var ipAddress = this.refs.ip_address.getDOMNode().value.trim();  
+          this.updateLocationHash(ipAddress);
+          console.log(ipAddress);
+        },
+    processResults: function(response) {
+        var jsonp = response.data+'';
+        if(!jsonp) return; 
+        var json = jsonp.substring(jsonp.indexOf("(") + 1, jsonp.length-2);
+        console.log(json)
+        var results = JSON.parse(json)
+        console.log(results);
+        var cityName = results.city
+        var countryCode = results.country
+        location.hash = encodeURIComponent(cityName)+'/'+encodeURIComponent(countryCode);
+        console.log(location.hash);
+    },
+    updateLocationHash : function(ipAddress) {
+        //get city name
+        var self = this;
+        var requestString = "https://ipinfo.io/" + ipAddress +"/geo?callback=HANDLECALLBACK";
+        console.log(requestString);
+        axios.get(requestString)
+            .then(function(response) {
+                self.processResults( response)
+            });
+    },
+    render: function(){
 		return (
-			<form id="directions-form" onSubmit={this.handleSubmit}>
 				<div className="field-section">
-					<label>
-						<select ref="travelMode" onChange={this.handleTravelModeChange}>
-							<option value="walking">Walking</option>
-							<option value="bicycling">Bicycling</option>
-							<option value="driving">Driving</option>
-						</select> from
-					</label>
-					<input ref="start" id="directions-start" placeholder="Start" required />
+					<label htmlFor="IPAddress">IP Address</label>
+					<input ref="ip_address" id="ip_address" placeholder="IP Address" required />
+                                        <input type="button" onClick={this.handleSubmit} value="Show Weather"/>
 				</div>
-				<a href="#" id="flip-direction" onClick={this.handleFlip} title="Flip origin and destination" tabIndex="-1"><Icon type="arrow-right" width="14" height="14"></Icon></a>
-				<div className="field-section">
-					<label htmlFor="directions-end">To</label>
-					<input ref="end" id="directions-end" placeholder="Destination" required />
-				</div>
-				<div className="form-footer">
-					<div className="options">
-						<Icon type="widget" width="20" height="20" title="Settings"></Icon>
-						<span>
-							<label>Distance&nbsp;
-								<select ref="distanceSelect" value={units.distance} onChange={this.handleDistanceChange}>
-									<option value="km">km</option>
-									<option value="miles">miles</option>
-								</select>
-							</label>&nbsp;
-							<label>Height&nbsp;
-								<select ref="heightSelect" value={units.height} onChange={this.handleHeightChange}>
-									<option value="m">m</option>
-									<option value="ft">ft</option>
-								</select>
-							</label>
-						</span>
-					</div>
-					<button>Go</button>
-				</div>
-			</form>
 		);
 	}
 });
