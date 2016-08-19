@@ -22,3 +22,5 @@ gulp deploy
 
 ## JSONP to JSON for Allow Cross Domain Access
 
+## Demo Address
+https://jiessie.github.io/weatherMap/
