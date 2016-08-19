@@ -1,7 +1,7 @@
 {
-  "name": "steepless",
+  "name": "weatherMap",
   "version": "0.0.1",
-  "description": "Find the flattest routes and avoid the hilliest routes",
+  "description": "All kinds of weather Map by reactjs + googleMap",
   "devDependencies": {
     "axios": "^0.13.1",
     "gulp": "~3.8.11",
@@ -9,6 +9,6 @@
     "gulp-watch": "~4.2.4",
     "gulp-webserver": "~0.9.0"
   },
-  "author": "Lim Chee Aun",
+  "author": "Xin Yu",
   "license": "MIT"
 }
