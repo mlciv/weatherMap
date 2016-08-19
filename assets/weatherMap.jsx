@@ -186,7 +186,7 @@ var Map = React.createClass({
                 windSpeed: weatherItem.wind.speed,
                 windDegrees: weatherItem.wind.deg,
                 windGust: weatherItem.wind.gust,
-                icon: "http://openweathermap.org/img/w/"
+                icon: "https://openweathermap.org/img/w/"
                     + weatherItem.weather[0].icon  + ".png",
                 coordinates: [weatherItem.coord.lon, weatherItem.coord.lat]
             },
@@ -235,7 +235,7 @@ var Map = React.createClass({
         var state = this.state;
         var cityName = state.cityName;
         var countryCode = state.countryCode;
-        var requestString = "http://api.openweathermap.org/data/2.5/weather?q="
+        var requestString = "https://api.openweathermap.org/data/2.5/weather?q="
                 + cityName + "," + countryCode
                 + "&APPID=" + WeatherMap.openWeatherMapKey;
         console.log(requestString);
@@ -255,7 +255,7 @@ var Map = React.createClass({
             var eastLng = state.neLng;
             var southLat = state.swLat;
             var westLng = state.swLng;
-            var requestString = "http://api.openweathermap.org/data/2.5/box/city?bbox="
+            var requestString = "https://api.openweathermap.org/data/2.5/box/city?bbox="
                 + westLng + "," + northLat + "," //left top
                 + eastLng + "," + southLat + "," //right bottom
                 + map.getZoom()
@@ -334,7 +334,7 @@ var IPForm = React.createClass({
     updateLocationHash : function(ipAddress) {
         //get city name
         var self = this;
-        var requestString = "http://ipinfo.io/" + ipAddress +"/geo?callback=HANDLECALLBACK";
+        var requestString = "https://ipinfo.io/" + ipAddress +"/geo?callback=HANDLECALLBACK";
         console.log(requestString);
         axios.get(requestString)
             .then(function(response) {
